@@ -1,6 +1,10 @@
 import { dbQuery } from "@/lib/cohesivity";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(req: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month");
   const year = searchParams.get("year");
@@ -20,6 +24,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const body = await req.json().catch(() => null) as {
     title?: unknown; description?: unknown; start_time?: unknown;
     end_time?: unknown; date?: unknown; type?: unknown; color?: unknown;
@@ -46,6 +53,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id || isNaN(Number(id))) return Response.json({ error: "Invalid id" }, { status: 400 });
@@ -54,6 +64,9 @@ export async function DELETE(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const body = await req.json().catch(() => null) as {
     id?: unknown; title?: unknown; description?: unknown; start_time?: unknown;
     end_time?: unknown; date?: unknown; type?: unknown; color?: unknown;

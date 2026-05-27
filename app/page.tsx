@@ -11,8 +11,10 @@ import VoiceButton from "@/components/VoiceButton";
 import ConfirmModal from "@/components/ConfirmModal";
 import AddEventModal from "@/components/AddEventModal";
 import EventDetailModal from "@/components/EventDetailModal";
+import LoginScreen from "@/components/LoginScreen";
 
 export default function CalendarPage() {
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const [view, setView] = useState<CalendarView>("week");
   const [current, setCurrent] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -30,10 +32,18 @@ export default function CalendarPage() {
     setTimeout(() => setToast(""), 3000);
   }
 
+  // Check auth on mount by probing the events endpoint
+  useEffect(() => {
+    fetch("/api/events?month=1&year=2000")
+      .then((r) => setAuthed(r.status !== 401))
+      .catch(() => setAuthed(false));
+  }, []);
+
   const loadEvents = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/events?month=${current.getMonth() + 1}&year=${current.getFullYear()}`);
+      if (res.status === 401) { setAuthed(false); return; }
       const data = await res.json();
       setEvents(data.events ?? []);
     } finally {
@@ -122,6 +132,18 @@ export default function CalendarPage() {
     { key: "3day", label: "3 Day" },
     { key: "day", label: "Day" },
   ];
+
+  if (authed === null) {
+    return (
+      <div className="min-h-screen bg-stone-950 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return <LoginScreen onLogin={() => setAuthed(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}>

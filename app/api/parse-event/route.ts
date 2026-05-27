@@ -1,4 +1,7 @@
 import { aiParse } from "@/lib/cohesivity";
+import { requireAuth } from "@/lib/auth";
+
+const MAX_TEXT_LENGTH = 500;
 
 const EVENT_SCHEMA = {
   type: "object",
@@ -16,12 +19,18 @@ const EVENT_SCHEMA = {
 };
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null) as { text?: unknown } | null;
-  const text = typeof body?.text === "string" ? body.text.trim() : "";
-  if (!text) return Response.json({ error: "text is required" }, { status: 400 });
+  const denied = await requireAuth();
+  if (denied) return denied;
 
+  const body = await req.json().catch(() => null) as { text?: unknown } | null;
+  const raw = typeof body?.text === "string" ? body.text.trim() : "";
+  if (!raw) return Response.json({ error: "text is required" }, { status: 400 });
+
+  const text = raw.slice(0, MAX_TEXT_LENGTH);
   const today = new Date().toISOString().split("T")[0];
-  const prompt = `Today is ${today}. Parse this into a calendar event. If no time given, use 09:00. If no date given, use today. Make the title concise. Input: "${text}"`;
+
+  // JSON.stringify the user text so embedded quotes/newlines can't escape the prompt
+  const prompt = `Today is ${today}. Parse the user input below into a calendar event. If no time given, use 09:00. If no date given, use today. Make the title concise.\n\nUser input: ${JSON.stringify(text)}`;
 
   const parsed = await aiParse(prompt, EVENT_SCHEMA);
   return Response.json({ event: parsed });
