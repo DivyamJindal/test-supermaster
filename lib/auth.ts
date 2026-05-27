@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const SESSION_COOKIE = "cal_session";
-const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+const MAX_AGE = 60 * 60 * 24 * 30; // 30 days in seconds
 
 function secret() {
   const s = process.env.APP_SECRET;
@@ -12,6 +12,15 @@ function secret() {
 
 function sign(value: string): string {
   return createHmac("sha256", secret()).update(value).digest("hex");
+}
+
+function safeEqual(a: string, b: string): boolean {
+  // Reject immediately on length mismatch (no timing info leaks because
+  // both are hex digests of the same algorithm — always 64 chars)
+  const bufA = Buffer.from(a, "hex");
+  const bufB = Buffer.from(b, "hex");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
 }
 
 export function makeSessionToken(): string {
@@ -24,7 +33,16 @@ export function verifySessionToken(token: string): boolean {
   if (dot === -1) return false;
   const payload = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  return sign(payload) === sig;
+
+  // Constant-time HMAC check
+  if (!safeEqual(sign(payload), sig)) return false;
+
+  // Enforce expiry: payload is "auth:<ms timestamp>"
+  const parts = payload.split(":");
+  const ts = Number(parts[1]);
+  if (!Number.isFinite(ts) || Date.now() - ts > MAX_AGE * 1000) return false;
+
+  return true;
 }
 
 export async function requireAuth(): Promise<Response | null> {
